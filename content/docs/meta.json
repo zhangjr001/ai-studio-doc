@@ -1,0 +1,13 @@
+{
+  "pages": [
+    "index",
+    "getting-started",
+    "concepts",
+    "workflow",
+    "knowledge",
+    "models",
+    "prompts",
+    "integrations",
+    "deployment"
+  ]
+}

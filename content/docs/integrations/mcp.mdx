@@ -1,0 +1,42 @@
+---
+title: MCP 工具
+description: 接入 Model Context Protocol 服务器，扩展 Agent 能力
+---
+
+MCP（Model Context Protocol）是一个开放协议，为 AI 应用定义了统一的工具（Tools）、资源（Resources）与提示（Prompts）接入规范。AI Studio 作为 MCP Client，可以连接任意 MCP Server，让工作流中的 Agent 调用外部能力。
+
+## 典型用途
+
+- **数据查询**：连接数据库、内部 API 的 MCP 服务器，Agent 按需查询实时数据；
+- **办公自动化**：读写文档、日历、工单系统；
+- **垂直能力**：搜索、爬虫、代码执行等专业工具服务。
+
+## 接入 MCP 服务器
+
+1. 进入项目「设置 → MCP」页面，点击**添加服务器**；
+2. 选择传输方式并填写连接信息：
+
+   ```yaml title="SSE / Streamable HTTP 方式"
+   名称: company-tools
+   类型: Streamable HTTP
+   URL: https://mcp.example.com/mcp
+   认证头（可选）: your-token
+   ```
+
+   ```yaml title="STDIO 方式（本地进程）"
+   名称: filesystem
+   类型: STDIO
+   命令: npx
+   参数: -y @modelcontextprotocol/server-filesystem /data
+   ```
+
+3. 保存后点击**连接测试**，确认服务器返回了工具列表；
+4. 工具列表中的每一项都可以被工作流的**工具调用节点**或启用了工具能力的 LLM 节点使用。
+
+## 在工作流中使用
+
+在 LLM 节点中开启**工具调用**，勾选 MCP 服务器提供的工具。运行时模型自主决定何时调用工具，调用参数与返回结果都会记录在运行详情中。
+
+<Callout type="warning">
+  STDIO 方式的 MCP 服务器由后端进程拉起，命令需要能在服务器环境中执行；生产环境建议使用 HTTP 方式并配置认证。
+</Callout>

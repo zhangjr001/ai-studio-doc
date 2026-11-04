@@ -1,0 +1,56 @@
+---
+title: 快速开始
+description: 用 Docker Compose 启动 AI Studio，完成首个工作流的创建与运行
+---
+
+本页帮助你从零开始把 AI Studio 跑起来：启动服务 → 首次登录 → 创建第一个工作流。
+
+## 前置要求
+
+| 依赖 | 最低版本 | 说明 |
+| ---- | -------- | ---- |
+| Docker & Docker Compose | 20.x / v2 | 运行后端、前端与数据库容器 |
+| 模型 API Key | - | 至少一个对话模型（OpenAI 协议兼容即可） |
+
+<Callout type="info">
+  本地开发调试（不使用 Docker）需要 Node.js 20+ 与 JDK 17+，详见[部署指南](/docs/deployment)中的「本地开发」一节。
+</Callout>
+
+## 1. 启动服务
+
+```bash title="启动全部服务"
+docker compose --env-file .env.development up -d
+```
+
+首次启动会拉取镜像并初始化数据库，视网络情况需要几分钟。启动完成后：
+
+- 前端界面：`http://localhost:5173`
+- 后端 API：`http://localhost:8081`
+
+<Callout type="warning" title="必需的环境变量">
+  后端启动时会做 fail-closed 校验：`AGENT_FLOW_JWT_SECRET`、数据库连接与管理员初始密码等关键配置缺失或为空时，服务会**拒绝启动**并打印明确错误。请检查环境文件后再重试。
+</Callout>
+
+## 2. 首次登录
+
+1. 打开前端界面，使用环境文件中配置的管理员账号登录；
+2. 登录后请**立即在「设置 → 安全」中修改初始密码**；
+3. 在「模型管理」中添加你的第一个对话模型（填入 API Key 与 Base URL）。
+
+## 3. 创建第一个工作流
+
+1. 进入「工作流」页面，点击**新建工作流**；
+2. 从空白画布开始，拖入一个 **LLM 节点**，在节点配置中选择刚添加的模型，填写提示词；
+3. 连接**开始节点 → LLM 节点 → 结束节点**；
+4. 点击右上角**运行测试**，输入一条消息验证输出；
+5. 保存并**发布**，工作流即可通过共享聊天页面使用。
+
+也可以试试 [AI 构建](/docs/workflow/ai-builder)：用一句自然语言描述需求，让 AI 直接生成工作流草稿。
+
+## 下一步
+
+<Cards>
+  <Card title="核心概念" href="/docs/concepts" desc="理解组织、项目、工作流、知识库之间的关系。" />
+  <Card title="工作流编辑器" href="/docs/workflow" desc="节点类型、变量引用与运行调试的完整说明。" />
+  <Card title="知识库" href="/docs/knowledge" desc="上传文档，构建可检索的知识源。" />
+</Cards>

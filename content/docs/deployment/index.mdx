@@ -1,0 +1,67 @@
+---
+title: 部署指南
+description: Docker Compose 部署、环境文件体系与安全清单
+---
+
+AI Studio 支持以 Docker Compose 一键部署，也支持前后端分离的本地开发模式。
+
+## 服务架构
+
+| 服务 | 说明 | 默认端口 |
+| ---- | ---- | -------- |
+| web | 前端界面（Vite + React） | 5173 |
+| api | 后端主服务（Spring Boot） | 8081 |
+| kb | 知识库解析服务（文档解析、OCR、转写、向量化） | - |
+| postgres | PostgreSQL 数据库 | 5432 |
+
+## 环境文件体系
+
+配置通过环境文件管理，按环境划分：
+
+```
+.env.development   # 开发环境
+.env.test          # 测试环境
+.env.production    # 生产环境
+```
+
+使用方式：
+
+```bash
+docker compose --env-file .env.production up -d
+```
+
+<Callout type="warning" title="fail-closed 校验">
+  后端启动时对关键配置做强制校验，包括但不限于：
+
+  - `AGENT_FLOW_JWT_SECRET`（JWT 签名密钥，必须为强随机值）
+  - 数据库连接地址与密码
+  - 管理员初始密码
+
+  任一缺失或为空，服务**拒绝启动**并在日志中打印缺失项。这是有意为之的安全设计：宁可起不来，也不要带弱配置上线。
+</Callout>
+
+## 生产部署清单
+
+- [ ] 生成强随机的 `AGENT_FLOW_JWT_SECRET`（如 `openssl rand -base64 48`）；
+- [ ] 修改管理员初始密码，并在首次登录后再次修改；
+- [ ] 数据库使用强密码，且不对公网暴露 5432 端口；
+- [ ] 前端入口配置 HTTPS（Nginx / 网关层终止 TLS）；
+- [ ] **环境文件不入库**：真实密钥只存在于部署环境，仓库中仅保留 `.env.example` 模板。
+
+## 本地开发
+
+前后端分别启动，热更新方便调试：
+
+```bash title="后端（JDK 17+）"
+./gradlew bootRun --args='--spring.profiles.active=development'
+```
+
+```bash title="前端（Node 20+）"
+cd apps/web
+pnpm install
+pnpm dev
+```
+
+<Callout type="info">
+  修改知识库服务（kb）相关代码后，需要 `clean` 再构建测试，增量产物可能导致 `NoClassDefFoundError`。
+</Callout>

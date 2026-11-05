@@ -11,6 +11,9 @@ const config = {
   basePath,
   assetPrefix: basePath,
   reactStrictMode: true,
+  images: {
+    unoptimized: true,
+  },
 };
 
 export default withMDX(config);

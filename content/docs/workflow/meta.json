@@ -1,4 +1,8 @@
 {
   "title": "工作流",
-  "pages": ["index", "ai-builder"]
+  "pages": [
+    "index",
+    "ai-builder",
+    "execution"
+  ]
 }

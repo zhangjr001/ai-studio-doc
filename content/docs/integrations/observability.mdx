@@ -1,31 +1,54 @@
 ---
-title: 观测与评估
-description: 运行 Trace、Token 用量统计与输出质量评估
+title: 全链路观测 (Langfuse & OTel)
+description: 深度整合开源 LLM 观测平台 Langfuse 与 OpenTelemetry 标准，实现生产级 Trace、Token 审计与质量分析
 ---
 
-工作流上线只是开始。AI Studio 内置观测能力，帮助你回答三个问题：**跑没跑成功**、**花了多少成本**、**回答得好不好**。
+工作流从实验走向生产，最关键的挑战在于「黑盒可解释性」与「质量成本监控」。Spark AI Studio 原生集成了业界领先的开源 LLM 观测分析平台 **Langfuse** 与 **OpenTelemetry (OTel)** 规范，为每一个项目提供企业级全链路监控。
 
-## 运行记录与 Trace
+![项目 Observability 选项卡配置面板](/images/settings/observability-langfuse.png)
 
-每次工作流执行（无论是测试运行、共享聊天还是 API 调用）都会生成一条运行记录：
+## 一、配置项目级 Langfuse 实例
 
-- **拓扑视图**：在画布上回放每个节点的执行顺序、耗时与状态；
-- **节点详情**：点击节点查看该步骤的完整输入与输出；
-- **错误定位**：失败节点高亮并展示错误堆栈，支持从中间节点重跑调试。
+进入「项目设置 → Observability」页面，勾选 **Send traces to Langfuse**：
 
-## 用量统计
+1. **Host（服务地址）**：
+   - 私有化部署填入内网地址（如 `http://9.72.192.123:3000`）；
+   - 使用 SaaS 版本填入 Langfuse 官方地址（如 `https://cloud.langfuse.com`）；
+2. **Public Key**：填写项目在 Langfuse 中生成的公钥（以 `pk-lf-` 开头）；
+3. **Langfuse Project ID**：填写对应项目的唯一 ID，用于前端生成直达该项目 Trace 详情的 Deep-link 网页链接；
+4. **Secret Key（安全保密）**：
+   - 填写 Langfuse 私钥凭据；
+   - **银行级落库加密**：在数据库底层采用 **AES-256-GCM** 高强度对称算法加密存储，前端 API 永远不会明文下发该密钥，确保凭据绝对安全。
 
-- 按模型统计 Token 消耗与调用次数；
-- 按工作流 / 时间维度聚合，评估成本趋势；
-- 组织管理员可在平台控制台查看跨项目的汇总数据。
+---
 
-## 评估
+## 二、工作流引擎 OpenTelemetry 追踪机制
 
-对共享聊天与测试运行的输出，可以从两个层面做质量评估：
+后端执行引擎在 DAG 节点流转的每一个关键节点上都植入了标准 OpenTelemetry Spans：
 
-- **人工评估**：在运行记录中对回答标注满意 / 不满意，沉淀 bad case；
-- **模型评估（LLM-as-a-Judge）**：配置一个评估模型与评分维度（准确性、相关性等），批量给历史运行打分，快速定位低质量回答。
+```
+[Workflow Run Root Trace]
+  ├── [Start Node Span] ── 收集初始输入参数 (0.2ms)
+  ├── [Rule Guardrail Span] ── 正则/PII/注入检测 (1.1ms, result=PASS)
+  ├── [Agent Execution Span] ── 智能体调度总耗时 (1.4s)
+  │     ├── [Prompt Template Interpolation] ── 参数填充与装配 (0.5ms)
+  │     ├── [LLM API Call] ── 真实模型推理与流式接收 (1.1s, 240 tokens)
+  │     └── [MCP Tool Execution Span] ── 知识库检索回调 (210ms)
+  └── [End Node Span] ── 汇总最终输出数据 (0.3ms)
+```
 
-<Callout type="tip">
-  知识库内容更新、提示词调整、模型切换之后，建议用固定的评估集跑一轮回归，确认质量没有回退。
-</Callout>
+### 追踪与审计指标
+- **Token 消耗精准核算**：按模型细分 Input Tokens、Output Tokens 与成本花费；
+- **首字延迟（TTFT）与端到端耗时**：精确分析每一跳节点的延时瓶颈；
+- **提示词与输出全景快照**：完整记录传递给模型的 Raw Prompt、变量插值上下文与模型实际输出，便于重现 Bad Case；
+- **护栏判定审计**：记录输入是否命中 PII 规则或提示词注入特征，以及拦截原因。
+
+---
+
+## 三、实时调试中的一键 Trace 直达
+
+在工作流编辑器的运行抽屉中，每一次发起交互式对话后，顶栏均提供了一键跳转的直达链接：
+
+![实时调试抽屉中的 Langfuse 快捷入口](/images/workflow/run-and-debug.png)
+
+点击顶部的 **↗ Langfuse** 按钮，浏览器将自动携带当前的会话 Trace ID 打开 Langfuse 监控控制台，直接定位到该次调用的执行树与调用栈。开发者无需在海量日志中检索 Session ID，便能秒级完成异常诊断。

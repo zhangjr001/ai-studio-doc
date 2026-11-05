@@ -1,56 +1,86 @@
 ---
 title: 快速开始
-description: 用 Docker Compose 启动 AI Studio，完成首个工作流的创建与运行
+description: 从零启动 Spark AI Studio，完成登录、进入项目并运行首个多智能体工作流
 ---
 
-本页帮助你从零开始把 AI Studio 跑起来：启动服务 → 首次登录 → 创建第一个工作流。
+本教程将引导你在 5 分钟内完成 Spark AI Studio 的本地运行，并体验从项目工作区到工作流编排与实时调试的完整旅程。
 
-## 前置要求
+## 前置环境要求
 
-| 依赖 | 最低版本 | 说明 |
-| ---- | -------- | ---- |
-| Docker & Docker Compose | 20.x / v2 | 运行后端、前端与数据库容器 |
-| 模型 API Key | - | 至少一个对话模型（OpenAI 协议兼容即可） |
+| 依赖组件 | 最低版本要求 | 角色说明 |
+| -------- | ------------ | -------- |
+| **Java (JDK)** | 17+ | 运行后端 Spring Boot 核心服务（API & KB 引擎） |
+| **Maven** | 3.9+ | 后端多模块构建工具 |
+| **Node.js & pnpm** | Node 20+, pnpm 9+ / npm 11+ | 前端 Vite + React 客户端 |
+| **PostgreSQL** | 15+ (推荐含 pgvector) | 系统主数据库，存储租户、项目、DSL 与运行记录 |
+| **大模型 API Key** | - | 任意兼容 OpenAI 规范的对话模型（如 Gemini、GPT-4o、DeepSeek 等） |
 
 <Callout type="info">
-  本地开发调试（不使用 Docker）需要 Node.js 20+ 与 JDK 17+，详见[部署指南](/docs/deployment)中的「本地开发」一节。
+  平台支持全容器化一键拉起（Docker Compose），也支持前后端分离的独立开发模式。详见[部署指南](/docs/deployment)。
 </Callout>
 
-## 1. 启动服务
+---
 
-```bash title="启动全部服务"
-docker compose --env-file .env.development up -d
-```
+## 步骤一：首次登录
 
-首次启动会拉取镜像并初始化数据库，视网络情况需要几分钟。启动完成后：
+服务启动后，在浏览器访问前端控制台（默认地址为 `http://localhost:5173/`）。系统将自动重定向至登录页面：
 
-- 前端界面：`http://localhost:5173`
-- 后端 API：`http://localhost:8081`
+![登录界面](/images/getting-started/login-page.png)
 
-<Callout type="warning" title="必需的环境变量">
-  后端启动时会做 fail-closed 校验：`AGENT_FLOW_JWT_SECRET`、数据库连接与管理员初始密码等关键配置缺失或为空时，服务会**拒绝启动**并打印明确错误。请检查环境文件后再重试。
-</Callout>
+1. 输入平台管理员或受邀租户账号邮箱；
+2. 填写密码完成身份鉴权认证；
+3. 登录成功后，系统会自动保存 JWT 凭证并进入组织控制台。
 
-## 2. 首次登录
+---
 
-1. 打开前端界面，使用环境文件中配置的管理员账号登录；
-2. 登录后请**立即在「设置 → 安全」中修改初始密码**；
-3. 在「模型管理」中添加你的第一个对话模型（填入 API Key 与 Base URL）。
+## 步骤二：进入组织与项目
 
-## 3. 创建第一个工作流
+Spark AI Studio 采用层级化的工作空间结构：组织（Organization）作为团队与权限边界，项目（Project）作为功能资产容器。
 
-1. 进入「工作流」页面，点击**新建工作流**；
-2. 从空白画布开始，拖入一个 **LLM 节点**，在节点配置中选择刚添加的模型，填写提示词；
-3. 连接**开始节点 → LLM 节点 → 结束节点**；
-4. 点击右上角**运行测试**，输入一条消息验证输出；
-5. 保存并**发布**，工作流即可通过共享聊天页面使用。
+![组织与项目控制台](/images/getting-started/project-dashboard.png)
 
-也可以试试 [AI 构建](/docs/workflow/ai-builder)：用一句自然语言描述需求，让 AI 直接生成工作流草稿。
+1. 在顶部或中心区域选择所属组织（例如 `or1`）；
+2. 可以在该组织下直接点击 **新建项目**，或者选择已有项目卡片进入（例如 `ai-studio-project`）；
+3. 侧边栏随即展开该项目下的全部核心能力模块：**工作流**、**提示词**、**知识库**、**MCP**、**向量查询**与**设置**。
+
+---
+
+## 步骤三：开启首个工作流编排
+
+进入项目的「工作流」页面，点击 **新建工作流** 卡片或从空白画布开始创建：
+
+![工作流可视化编辑器](/images/getting-started/workflow-editor.png)
+
+### 画布核心区域速览
+
+- **顶部控制栏**：实时显示工作流状态（草稿 / 已发布版本）、**发布**按钮、**AI 构建**助手、自动排版整理以及 **DSL 源码**查看与导出。
+- **节点工具栏（Drag to canvas）**：
+  - `CONTROL`：**Start**（开始节点）、**End**（结束节点）、**Router**（条件路由节点）；
+  - `AI`：**Agent**（核心智能体节点，支持模型、提示词、工具与记忆）；
+  - `SAFETY`：**Rule guardrail**（规则护栏，过滤 PII 与注入攻击）、**LLM guardrail**（模型语义护栏）。
+- **右侧面板**：选中节点时展现属性配置，点击右侧播放图标展开实时运行调试抽屉。
+
+---
+
+## 步骤四：运行与对话调试
+
+完成节点连接与基本参数配置后，点击右侧的 **运行调试** 按钮打开对话抽屉：
+
+![交互式会话运行调试](/images/getting-started/workflow-run.png)
+
+1. 在底部输入框输入测试文本（例如 `你好！很高兴认识你`）；
+2. 点击发送后，执行引擎按照 DAG 拓扑依次流转：
+   - 规则护栏实时检测输入长度与安全性；
+   - 通过校验后触发 Agent 调用所配置的大模型；
+   - 结果流式响应并在界面呈现。
+3. 抽屉顶部支持 **新对话**、**结束会话** 以及一键直达 **Langfuse** 查看该次运行的底层 Trace 与 Token 耗时详情。
+
+---
 
 ## 下一步
 
-<Cards>
-  <Card title="核心概念" href="/docs/concepts" desc="理解组织、项目、工作流、知识库之间的关系。" />
-  <Card title="工作流编辑器" href="/docs/workflow" desc="节点类型、变量引用与运行调试的完整说明。" />
-  <Card title="知识库" href="/docs/knowledge" desc="上传文档，构建可检索的知识源。" />
-</Cards>
+现在你已经掌握了 AI Studio 的基本操作闭环，接下来建议继续了解：
+
+- 深入探索节点逻辑：[画布与节点详解](/docs/workflow)
+- 借助自然语言一键搭建架构：[AI 辅助构建](/docs/workflow/ai-builder)
+- 将企业文档沉淀为智能检索源：[知识库概览](/docs/knowledge)

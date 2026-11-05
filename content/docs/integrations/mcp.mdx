@@ -1,42 +1,80 @@
 ---
-title: MCP 工具
-description: 接入 Model Context Protocol 服务器，扩展 Agent 能力
+title: Model Context Protocol (MCP)
+description: 双向打通 MCP 开放标准：将企业知识库一键发布为 MCP 工具，并无缝接入外部远程 MCP 服务
 ---
 
-MCP（Model Context Protocol）是一个开放协议，为 AI 应用定义了统一的工具（Tools）、资源（Resources）与提示（Prompts）接入规范。AI Studio 作为 MCP Client，可以连接任意 MCP Server，让工作流中的 Agent 调用外部能力。
+[Model Context Protocol (MCP)](https://modelcontextprotocol.io) 是由 Anthropic 倡导、现已成为行业标准的开放协议，旨在为大模型智能体提供统一的外部上下文（Context）、工具（Tools）与数据源（Resources）交互规范。
 
-## 典型用途
+Spark AI Studio 在架构层深度集成了 MCP 协议，并兼具 **MCP 服务提供者（Provider）** 与 **MCP 客户端消费者（Consumer）** 双重身份。
 
-- **数据查询**：连接数据库、内部 API 的 MCP 服务器，Agent 按需查询实时数据；
-- **办公自动化**：读写文档、日历、工单系统；
-- **垂直能力**：搜索、爬虫、代码执行等专业工具服务。
+![MCP 知识库工具卡片与对外标准端点](/images/mcp/knowledge-tools-list.png)
 
-## 接入 MCP 服务器
+## 一、AI Studio 作为 MCP 服务提供方（Provider）
 
-1. 进入项目「设置 → MCP」页面，点击**添加服务器**；
-2. 选择传输方式并填写连接信息：
+平台最亮眼的特性之一，是**将复杂的企业知识库一键封装为标准 MCP 工具**，无需手写任何适配代码。
 
-   ```yaml title="SSE / Streamable HTTP 方式"
-   名称: company-tools
-   类型: Streamable HTTP
-   URL: https://mcp.example.com/mcp
-   认证头（可选）: your-token
-   ```
+### 1. 自动派生三类标准工具
+在项目的「MCP → 知识库工具」页面，每当创建一个知识库（如 `1030` 或 `aa`），系统便会自动为其生成三种细分检索模式的 MCP 工具：
 
-   ```yaml title="STDIO 方式（本地进程）"
-   名称: filesystem
-   类型: STDIO
-   命令: npx
-   参数: -y @modelcontextprotocol/server-filesystem /data
-   ```
+| 工具名称命名规范 | 模式说明 | 输入参数定义 |
+| ---------------- | -------- | ------------ |
+| `kb_{name}_{id}_HYBRID` | **混合检索工具**：向量语义 + BM25 关键词匹配，通过 RRF 算法融合评分 | `query: string`（查询文本），可选 `queryImages`（多模态图像检索） |
+| `kb_{name}_{id}_TEXT` | **全文关键词检索工具**：仅通过 BM25 进行词频倒排检索，精准查找专有型号、零部件代码 | `query: string` |
+| `kb_{name}_{id}_KNN` | **向量相似度工具**：仅通过 Dense Embedding 进行语义相关度排序 | `query: string`，可选 `queryImages` |
 
-3. 保存后点击**连接测试**，确认服务器返回了工具列表；
-4. 工具列表中的每一项都可以被工作流的**工具调用节点**或启用了工具能力的 LLM 节点使用。
+- 每个工具卡片均展示其启用状态（如绿色 `已启用`）；
+- 支持设置 `对外公开`，允许外部通过认证访问。
 
-## 在工作流中使用
+### 2. 标准对外统一端点
+在工具列表上方，平台提供了标准的对外访问地址：
 
-在 LLM 节点中开启**工具调用**，勾选 MCP 服务器提供的工具。运行时模型自主决定何时调用工具，调用参数与返回结果都会记录在运行详情中。
+```
+对外地址: http://<hostname>:5173/api/v1/mcp
+```
 
-<Callout type="warning">
-  STDIO 方式的 MCP 服务器由后端进程拉起，命令需要能在服务器环境中执行；生产环境建议使用 HTTP 方式并配置认证。
-</Callout>
+点击一键复制后，可直接配置到任意支持 MCP 规范的外部客户端中（例如 **Claude Desktop**、**Cursor IDE**、**LangChain** 或自研的多智能体系统），外部客户端即可通过标准 MCP 协议直接调用 AI Studio 托管的企业知识库。
+
+```json title="Claude Desktop 配置示例 (claude_desktop_config.json)"
+{
+  "mcpServers": {
+    "spark-ai-studio": {
+      "url": "http://127.0.0.1:5173/api/v1/mcp",
+      "headers": {
+        "Authorization": "Bearer <YOUR_PROJECT_API_KEY>"
+      }
+    }
+  }
+}
+```
+
+---
+
+## 二、AI Studio 作为 MCP 消费者（Consumer）
+
+除了对外输出工具，AI Studio 还支持连接外部已有的远程 MCP 服务，将第三方业务能力赋能给内部智能体。
+
+![外部远程 MCP 服务管理](/images/mcp/external-servers.png)
+
+### 接入外部远程 MCP 服务
+在「MCP → 外部 MCP 服务」选项卡中，点击 **添加 MCP 服务**：
+1. **传输协议选择**：支持标准远程 **Streamable HTTP** 与 **Server-Sent Events (SSE)**；
+2. **连接配置**：
+   - **服务名称**：如 `weather-service`、`erp-database-tools`；
+   - **服务地址（URL）**：如 `https://mcp.internal-company.com/sse`；
+   - **认证授权头（Headers）**：填入访问该 MCP 服务所需的 API Token；
+3. **健康探测与工具同步**：保存后系统自动与远程服务进行握手，同步其暴露的全部工具声明（Tool Schemas）到当前项目。
+
+---
+
+## 三、在工作流 Agent 中装配 MCP 工具
+
+当知识库工具或外部 MCP 服务就绪后，在工作流编辑器的 Agent 节点中：
+
+```
+Agent 配置面板 ──> 工具(Tools)下拉菜单 ──> 勾选目标 MCP 工具 (如 1 tool selected)
+```
+
+1. **自动函数声明注入**：工作流引擎自动将勾选工具的 JSON Schema 转换为大模型兼容的 Tool Definitions；
+2. **自主推理与调用**：在运行时，模型根据用户提问自主生成工具调用参数；
+3. **安全执行与观察注入**：引擎调用目标 MCP 接口执行检索或操作，将观察结果（Observation）喂回给模型生成最终响应；
+4. **Trace 审计**：每一次工具调用的入参、耗时和返回值均可在运行抽屉中通过 Langfuse 进行审计追溯。

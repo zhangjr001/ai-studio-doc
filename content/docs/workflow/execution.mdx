@@ -1,0 +1,149 @@
+---
+title: 执行、调试与 DSL 规范
+description: 掌握工作流的交互式运行测试、Langfuse 全链路 Trace 审计以及底层 DSL 规范
+---
+
+在工作流编排完成后，Spark AI Studio 提供了从单步调试、多轮交互测试，到全链路可观测性排查以及代码级 DSL 导出的完整支持。
+
+![实时运行与会话调试抽屉](/images/workflow/run-and-debug.png)
+
+## 1. 交互式调试面板
+
+点击编辑器右侧工具栏的 **播放图标（Play Circle）**，即可滑出调试抽屉。该面板包含 **运行** 与 **测试** 两大视图：
+
+### 「运行」模式（真实会话演练）
+- **多轮会话持久化**：支持在交互界面中像真实用户一样发起多轮连续对话，直观检验 Agent 的上下文连贯性与意图分流效果；
+- **状态与耗时反馈**：每一轮问答都带有明确的执行状态标记（如 `已完成`、`失败`）以及时间戳；
+- **全局变量注入（GLOBALS）**：底部栏支持查看与临时修改全局环境参数（如 `userRole=guest`、`tenant_id` 等），验证不同身份下的权限与路由行为；
+- **会话控制按钮**：
+  - **新对话**：清空当前会话缓存，开启全新的一轮上下文；
+  - **结束会话**：向后端触发会话生命周期完结钩子；
+  - **刷新 / 历史**：重新拉取该工作流的历史调试轮次。
+
+### 「测试」模式（单点入参模拟）
+如果只需测试某一次确定的入参输出，可切换到「测试」标签页，填入标准的 JSON 入参对象（如 `{"input": "钥匙有几种功能？"}`）进行单次执行。
+
+---
+
+## 2. 深度集成 Langfuse 全链路追踪
+
+在调试抽屉顶栏，显式提供了一个直达 **Langfuse** 的外链快捷入口：
+
+```
+[新对话]  [结束会话]  [↗ Langfuse]  [历史]  [刷新]
+```
+
+当点击 **Langfuse** 时，系统会携带当前的 Trace ID，直接在新的浏览器标签页中打开项目对应的 Langfuse 控制台：
+
+1. **DAG 节点级执行甘特图**：精准查看 `Start` → `Rule Guardrail` → `Agent` 各阶段的先后耗时与调用状态；
+2. **LLM 交互与 Token 审计**：记录传递给模型的完整 System Prompt、用户 Context、实际 Token 消耗（Input Tokens、Output Tokens、Total Tokens）及费用统计；
+3. **函数调用详情**：如果在 Agent 中触发了 MCP 知识库检索工具，可在 Trace 中展开查看工具调用的入参、检索到的 Chunk 内容以及模型的最终组装结果。
+
+<Callout type="tip">
+  开启全链路追踪前，请确保已在「项目设置 → Observability」中填写了 Langfuse Host 与对应项目的公私钥。详见[全链路观测](/docs/integrations/observability)。
+</Callout>
+
+---
+
+## 3. 工作流 DSL 规范 (`dslVersion: "1.0"`)
+
+AI Studio 画布背后是由一套严格版本化的 JSON 规范驱动的。点击顶栏的 **`<>` 代码图标**，可随时打开查看当前工作流的完整 DSL 定义：
+
+![工作流底层 DSL 查看](/images/workflow/dsl-json-view.png)
+
+### DSL 核心数据结构
+
+```json title="工作流 DSL 核心结构示意"
+{
+  "dslVersion": "1.0",
+  "nodes": [
+    {
+      "id": "start-1",
+      "type": "START",
+      "label": "Start",
+      "position": { "x": 40, "y": 47 },
+      "config": {
+        "inputSchema": [
+          {
+            "name": "input",
+            "type": "string",
+            "description": "User input",
+            "required": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "guardrail-1",
+      "type": "RULE_GUARDRAIL",
+      "label": "Rule guardrail",
+      "position": { "x": 220, "y": 47 },
+      "config": {
+        "maxLength": 2000,
+        "piiTypes": ["PHONE", "ID_CARD", "PLATE", "VIN", "EMAIL"],
+        "detectInjection": true
+      }
+    },
+    {
+      "id": "agent-1793154559900",
+      "type": "AGENT",
+      "label": "Untitled agent",
+      "position": { "x": 402, "y": 40 },
+      "config": {
+        "modelId": "gemini-3.5-flash",
+        "promptSlug": "pmt_dt4l",
+        "memory": { "mode": "NONE" },
+        "toolIds": ["kb_1030_5e1ff052_HYBRID"]
+      }
+    },
+    {
+      "id": "end-1",
+      "type": "END",
+      "label": "End",
+      "position": { "x": 678, "y": 47 }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-start-guardrail",
+      "source": "start-1",
+      "target": "guardrail-1"
+    },
+    {
+      "id": "edge-guardrail-agent",
+      "source": "guardrail-1",
+      "sourceHandle": "pass",
+      "target": "agent-1793154559900"
+    },
+    {
+      "id": "edge-agent-end",
+      "source": "agent-1793154559900",
+      "target": "end-1"
+    }
+  ]
+}
+```
+
+- **版本受控**：`dslVersion` 确保升级引擎时向前兼容；
+- **解耦存储**：节点位置（`position`）与业务执行逻辑（`config`）分离，方便在 CI/CD 中通过代码自动化更新或迁移工作流。
+
+---
+
+## 4. 生产环境调用 API
+
+工作流发布后，外部业务系统可通过 HTTP API 进行异步或流式调用：
+
+```bash title="工作流对外执行接口"
+curl -X POST "http://localhost:8081/api/v1/projects/{project-slug}/workflows/{workflow-slug}/run" \
+  -H "Authorization: Bearer <YOUR_PROJECT_API_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "inputs": {
+      "input": "请帮我查询车钥匙更换电池的步骤"
+    },
+    "stream": true
+  }'
+```
+
+- **认证方式**：使用在「项目设置 → API Keys」中申请的 Bearer Token；
+- **流式返回**：指定 `"stream": true` 时采用标准 Server-Sent Events (SSE) 协议返回逐字生成的 Agent 回复。

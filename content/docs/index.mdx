@@ -1,30 +1,33 @@
 ---
 title: AI Studio 文档
-description: 欢迎使用 AI Studio——开箱即用的企业级 AI Agent 与工作流平台
+description: 欢迎使用 Spark AI Studio——集可视化工作流、多智能体协作、企业知识库、MCP 与全链路观测于一体的 AI 应用开发平台
 ---
 
-欢迎来到 AI Studio 文档。AI Studio 让你在一个平台上完成 **AI 工作流编排、知识库构建、模型管理与运行观测**，支持私有化部署，数据完全留在自己的基础设施内。
+欢迎来到 **Spark AI Studio** 官方文档。
 
-## 核心能力
+Spark AI Studio 是面向企业与开发者的全栈式 AI 智能体编排与工程化平台。平台打通了从**模型接入**、**知识库构建与清洗**、**提示词工程**、**可视化画布编排**、**MCP 工具扩展**到**运行测试与 Langfuse 全链路追踪**的完整闭环，支持开箱即用的私有化部署，让业务数据与推理调用完全留在自主可控的基础设施中。
+
+![Spark AI Studio 组织与项目工作区](/images/overview/organizations.png)
+
+## 核心架构与核心能力
+
+AI Studio 采用多租户、分层隔离的设计理念，从底层的基础模型与存储设施，到中层的知识与工具服务，再到上层的可视化应用编排：
+
+![多智能体复杂编排画布](/images/workflow/complex-orchestration.png)
 
 <Cards>
-  <Card title="工作流编辑器" href="/docs/workflow" desc="画布式可视化编排，从简单对话到多步骤 Agent 流程。" />
-  <Card title="知识库" href="/docs/knowledge" desc="上传文档自动解析、分块、向量化，支持多模态检索。" />
-  <Card title="模型管理" href="/docs/models" desc="统一接入对话、嵌入、重排、多模态四类模型。" />
-  <Card title="MCP 工具" href="/docs/integrations/mcp" desc="接入 Model Context Protocol，扩展 Agent 的工具能力。" />
-  <Card title="提示词库" href="/docs/prompts" desc="团队共享的提示词模板，支持参数化与在线调试。" />
-  <Card title="观测与评估" href="/docs/integrations/observability" desc="全链路 Trace、Token 用量与输出质量评估。" />
+  <Card title="画布式工作流编排" href="/docs/workflow" desc="拖拽式 DAG 画布，支持 Agent、Router、Rule/LLM Guardrail 等多种核心节点，内置 AI 构建助手。" />
+  <Card title="企业级知识库 (KB)" href="/docs/knowledge" desc="支持多模态文档解析、自定义分块清洗、Dense+BM25 混合检索与 RRF 融合重排。" />
+  <Card title="Model Context Protocol (MCP)" href="/docs/integrations/mcp" desc="既是 MCP 工具提供方（知识库一键转为 MCP 工具），也是标准 MCP 客户端（连接外部 HTTP/SSE 工具）。" />
+  <Card title="提示词资产库" href="/docs/prompts" desc="模板化提示词管理，支持动态参数插值、不可变版本回溯以及跨工作流的反向引用追踪。" />
+  <Card title="统一模型网关" href="/docs/models" desc="统一管理通用对话模型、向量嵌入、多模态视觉解析与语音转写模型，兼容 OpenAI 协议标准。" />
+  <Card title="全链路观测与调试" href="/docs/integrations/observability" desc="深度集成 Langfuse 与 OpenTelemetry，会话级调试面板支持单步耗时与 Token 消耗审计。" />
 </Cards>
 
-## 我该从哪里开始？
+## 快速导航
 
-- **第一次使用**：从[快速开始](/docs/getting-started)入手，5 分钟跑起服务并创建第一个工作流。
-- **想了解产品设计**：阅读[核心概念](/docs/concepts)，理解组织、项目、工作流与知识库之间的关系。
-- **准备上线部署**：直接查看[部署指南](/docs/deployment)。
-
-## 文档约定
-
-- UI 相关描述以中文界面为准；
-- 代码块中的命令默认在项目根目录执行；
-- 涉及密钥的配置项均以 `your-xxx` 形式占位，请替换为你自己的值。
-
+- **初次上手**：跟随[快速开始](/docs/getting-started)指南，完成服务启动、首次登录与构建第一条问答工作流。
+- **理解产品模型**：阅读[核心概念](/docs/concepts)，理清平台、组织、项目、工作流与执行引擎的关系。
+- **深入编排实战**：查看[画布与节点](/docs/workflow)、[AI 辅助构建](/docs/workflow/ai-builder)以及[执行与调试](/docs/workflow/execution)。
+- **构建知识增强 (RAG)**：掌握[文档解析与切分](/docs/knowledge/ingestion)与[向量查询检索](/docs/knowledge/search)。
+- **生产上线与运维**：参考[部署指南](/docs/deployment)配置数据库、JWT 密钥以及安全加固规范。

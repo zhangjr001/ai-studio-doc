@@ -1,9 +1,9 @@
 ---
 title: 部署指南与生产加固
-description: Spark AI Studio 生产级部署方案、Maven/Vite 本地开发指引、API 密钥与安全规范
+description: Spark AI Studio 生产级部署方案、Docker Compose 多环境隔离配置、Maven/Vite 开发指引与安全规范
 ---
 
-Spark AI Studio 专为企业私有化部署量身打造，支持轻量级单机 Docker Compose 交付，也支持面向高可用生产集群的微服务拆分部署。
+Spark AI Studio 专为企业级环境打造，提供标准化、多环境严密隔离的部署架构。无论是轻量级单机容器化交付，还是面向高可用生产集群的微服务拆分，均能开箱即用。
 
 ![项目 API Keys 访问密钥管理](/images/settings/api-keys.png)
 
@@ -11,12 +11,12 @@ Spark AI Studio 专为企业私有化部署量身打造，支持轻量级单机 
 
 | 服务组件 | 源码目录 / 技术栈 | 默认端口 | 职责说明 |
 | -------- | ----------------- | -------- | -------- |
-| **`web`** | `apps/web` (Vite + React 19 + Tailwind CSS) | `5173` | 可视化编排控制台、画布编辑器与用户界面 |
-| **`api`** | `apps/api` (Spring Boot 3 + Maven 3.9+) | `8081` | 统一后端 API 服务，包含平台管理与工作流编排引擎 |
-| **`kb`** | `apps/api/kb` (已集成至统一 Spring Boot API) | - | 知识库文档解析、多模态抽取、切块与向量入库管线 |
-| **`postgres`** | PostgreSQL 15+ (含 pgvector 扩展) | `5432` | 存储多租户、用户身份、工作流 DSL、切块数据与向量索引 |
-| **`minio`** | MinIO 对象存储服务 | `9000` | 存储上传的原始 PDF、Office 文档、图片与音频文件 |
-| **`elasticsearch`** | Elasticsearch 8+ (可选) | `9200` | 高并发场景下的倒排索引与混合检索加速引擎 |
+| **`web`** | `apps/web` (Vite + React 19 + Tailwind CSS) | `5173` (本地) / `8080~8280` (容器) | 可视化编排控制台、画布编辑器与用户交互界面 |
+| **`api`** | `apps/api` (Spring Boot 3 + Maven 3.9+) | `8081` (本地) / `8081~8281` (容器) | 统一后端 API 服务，包含多租户、工作流编排引擎与 OTel 追踪 |
+| **`kb`** | `apps/api/kb` (已集成至统一 Spring Boot API) | - | 知识库文档解析、多模态抽取、清洗、切块与向量入库管线 |
+| **`postgres`** | PostgreSQL 17 (含 pgvector 扩展) | `5432` | 存储多租户、用户身份、工作流 DSL、切块数据与向量索引 |
+| **`minio`** | MinIO 对象存储服务 | `9000` / 控制台 `9001` | 存储上传的原始 PDF、Office 文档、图片与音频源文件 |
+| **`elasticsearch`** | Elasticsearch 8.17.0 (可选) | `9200` | 高并发场景下的倒排索引加速与 BM25 关键词检索引擎 |
 
 <Callout type="info">
   **知识库服务已完成架构合并**：新版本中 Knowledge / KB Pipeline 已完全嵌入统一的 Spring Boot API 中，无需单独启动旧版的独立 8088 进程。
@@ -24,64 +24,140 @@ Spark AI Studio 专为企业私有化部署量身打造，支持轻量级单机 
 
 ---
 
-## 二、生产环境配置与 fail-closed 安全机制
+## 二、配置体系与 fail-closed 安全机制
 
 平台配置遵循严格的 **fail-closed（安全闭合/故障自锁）** 原则：关键配置缺失或使用不安全占位符时，后端服务将主动拒绝启动并打印明确报错，杜绝因疏忽带弱密码上线。
 
-### 核心配置文件 `.env.local`
-首次部署前从模板复制环境文件：
+Docker Compose 采用 **双层配置叠加架构**：
+1. **基础环境文件（Base Env）**：如 `.env.test`、`.env.staging`、`.env.prod`，记录端口分配、网络绑定策略与非机密参数，纳入版本控制；
+2. **机密参数覆盖层（Secrets Overlay）**：即 `.env.<env>.local`，包含真实数据库密码、MinIO 密钥、JWT 签名密钥等机密信息，**由 `.gitignore` 严格忽略，严禁提交到代码仓库**。
+
+---
+
+## 三、Docker Compose 多环境一键启动
+
+通过标准化的 Docker Compose 配置，不同环境（Test / Staging / Prod）各自拥有**完全独立的数据平面**（独立的 Postgres、MinIO、Elasticsearch 与网络空间），即使共存于单台物理机也绝不发生端口碰撞与数据越界。
+
+### 1. 克隆代码仓库并进入部署目录
 
 ```bash
-cp .env.example .env.local
+# 1. 克隆官方仓库
+git clone https://github.com/hunter1028/ai-studio.git
+
+# 2. 进入 Docker Compose 部署配置目录
+cd ai-studio/deploy/docker-compose
 ```
 
-修改其中的核心参数：
+### 2. 复制敏感配置模板并编辑机密
 
-```ini title=".env.local 核心配置示例"
-# 1. 数据库配置（禁止使用默认占位值 change-me）
-SPRING_DATASOURCE_URL=jdbc:postgresql://9.72.192.123:30432/pgdb?currentSchema=ai_studio
-SPRING_DATASOURCE_USERNAME=pguser
-SPRING_DATASOURCE_PASSWORD=YourRealStrongPassword123!
+根据即将启动的目标环境（`test` 测试 / `staging` 预发 / `prod` 生产），从敏感模板 `.env.secrets.example` 派生出对应的本地覆盖文件：
 
-# 2. JWT 签名密钥（必须为高强度随机字符串）
+```bash title="复制对应环境的机密配置"
+# 测试环境 (Test)
+cp .env.secrets.example .env.test.local
+
+# 预发环境 (Staging)
+cp .env.secrets.example .env.staging.local
+
+# 生产环境 (Production)
+cp .env.secrets.example .env.prod.local
+```
+
+打开派生出的本地配置文件（如 `.env.prod.local` 或 `.env.test.local`），**必须修改默认占位符与密码**：
+
+```ini title=".env.<env>.local 敏感配置项说明"
+# 1. PostgreSQL 独立实例密码（必须修改强密码，严禁使用弱口令）
+DB_PASSWORD=YourStrongDatabasePassword123!
+
+# 2. MinIO 对象存储访问凭据
+KB_S3_ACCESSKEY=minio_admin_user
+KB_S3_SECRETKEY=YourMinioSecretPassword456!
+
+# 3. Elasticsearch 密码（生产环境开启 ES_SECURITY_ENABLED=true 时必填）
+KB_ES_PASSWORD=YourElasticsearchPassword789!
+
+# 4. JWT 签名私钥（必须为强随机 base64 字符串，可使用 openssl rand -base64 32 生成）
 AGENT_FLOW_JWT_SECRET=c3BlY2lhbC1zdHJvbmctand0LXJhbmRvbS1zZWNyZXQta2V5LTIwMjY=
 
-# 3. MinIO 对象存储
-MINIO_ENDPOINT=http://minio:9000
-MINIO_ACCESS_KEY=minioadmin
-MINIO_SECRET_KEY=YourMinioSecretKey!
+# 5. 数据落库对称加密私钥（AES-256 算法加解密存储的 API Key 与 Langfuse Secret）
+AGENT_FLOW_SECRET_KEY=MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=
 
-# 4. 可选：默认模型与网关地址
-DEFAULT_OPENAI_BASE_URL=https://api.openai.com/v1
-DEFAULT_OPENAI_API_KEY=sk-proj-xxxxxxxx
+# 6. 可选：外部大模型默认接入 Key
+AI_DASHSCOPE_API_KEY=sk-xxxxxxxxxxxxxxxx
+
+# 7. 平台初始管理员账号与密码（首次登录平台控制台使用）
+PLATFORM_BOOTSTRAP_ADMIN_EMAIL=admin@example.com
+PLATFORM_BOOTSTRAP_ADMIN_PASSWORD=Admin@StrongPass123!
 ```
 
 ---
 
-## 三、Docker Compose 一键启动
+### 3. 多环境启动命令与端口矩阵
 
-在项目根目录下执行：
+启动时需同时传入**基础配置**与**本地机密文件**，并使用 `-p` 参数指定独立的项目前缀实现命名空间彻底隔离：
 
-```bash title="使用 Docker Compose 启动"
-docker compose --env-file .env.local up -d
+#### 模式 A：生产环境 (Production)
+生产环境启用最高安全级别：后端 API 仅绑定宿主机 `127.0.0.1` 环回接口，外部仅开放 Web 前端网关；强制开启安全 Cookie 与 Elasticsearch 认证。
+
+```bash title="生产环境启动"
+docker compose --env-file .env.prod --env-file .env.prod.local -p ai-studio-prod up -d
 ```
 
-启动完成后检查容器健康状态：
+- **前端 Web 控制台**：`http://<服务器IP>:8280`
+- **后端 API 服务**：`127.0.0.1:8281`（环回地址保护，仅允许反向代理内部通信）
+
+#### 模式 B：预发环境 (Staging)
+预发环境模拟生产拓扑，分配独立端口段供灰度与集成验收。
+
+```bash title="预发环境启动"
+docker compose --env-file .env.staging --env-file .env.staging.local -p ai-studio-staging up -d
+```
+
+- **前端 Web 控制台**：`http://<服务器IP>:8180`
+- **后端 API 服务**：`http://<服务器IP>:8181`
+
+#### 模式 C：测试环境 (Test)
+测试环境端口直接对宿主机全开放，便于开发人员使用 Postman 或自动化脚本直连探测 API。
+
+```bash title="测试环境启动"
+docker compose --env-file .env.test --env-file .env.test.local -p ai-studio-test up -d
+```
+
+- **前端 Web 控制台**：`http://<服务器IP>:8080`
+- **后端 API 服务**：`http://<服务器IP>:8081`
+
+---
+
+### 4. 容器运维、健康检查与日志监控
+
+执行启动后，可通过以下命令运维对应的环境堆栈（以生产环境 `ai-studio-prod` 为例）：
 
 ```bash
-docker compose ps
-curl -s http://localhost:8081/actuator/health
+# 1. 查看所有容器运行状态与健康度
+docker compose -p ai-studio-prod ps
+
+# 2. 检查后端 Spring Boot 服务的健康探测端点
+curl -s http://127.0.0.1:8281/actuator/health
+
+# 3. 实时滚动查看后端服务日志
+docker compose -p ai-studio-prod logs -f api
+
+# 4. 查看前端服务日志
+docker compose -p ai-studio-prod logs -f web
+
+# 5. 停止并释放容器（数据卷保留）
+docker compose -p ai-studio-prod down
 ```
 
 ---
 
-## 四、本地开发模式（前后端分离）
+## 四、本地开发模式（前后端分离调试）
 
 如需对平台源码进行二次开发，可分别启动后端与前端：
 
 ### 1. 启动后端 API（JDK 17 + Maven 3.9+）
 ```bash
-# 1. 导出环境变量
+# 1. 导出开发环境变量
 set -a
 source .env.local
 set +a
@@ -100,7 +176,7 @@ pnpm install
 pnpm dev
 ```
 
-前端开发服务器将在 `http://localhost:5173` 启动，支持代码修改热更新（HMR）。
+前端开发服务器将在 `http://localhost:5173` 启动，支持代码热更新（HMR）。
 
 ---
 
@@ -115,7 +191,14 @@ pnpm dev
 3. 系统生成以 `sk-proj-` 开头的 Bearer Token，**该密钥仅在创建时完整展示一次**，请妥善复制保存；
 4. 外部系统携带该 Token 调用公开执行端点：
 
-```text
-POST /api/v1/{project-slug}/workflows/{workflow-slug}/run
-Authorization: Bearer sk-proj-xxxxxxxxxxxxxxxx
+```bash title="外部业务系统调用已发布工作流"
+curl -X POST "http://localhost:8281/api/v1/{project-slug}/workflows/{workflow-slug}/run" \
+  -H "Authorization: Bearer sk-proj-xxxxxxxxxxxxxxxx" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "inputs": {
+      "input": "请帮我查询车钥匙更换电池的步骤"
+    },
+    "stream": true
+  }'
 ```

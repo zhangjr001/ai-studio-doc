@@ -2,12 +2,12 @@
   "pages": [
     "index",
     "getting-started",
-    "organizations",
     "concepts",
     "workflow",
     "knowledge",
     "models",
     "prompts",
+    "organizations",
     "integrations",
     "deployment"
   ]
